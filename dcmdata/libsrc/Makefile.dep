@@ -715,7 +715,10 @@ dcdocdec.o: dcdocdec.cc ../../config/include/dcmtk/config/osconfig.h \
  ../include/dcmtk/dcmdata/dcstack.h ../include/dcmtk/dcmdata/dclist.h \
  ../include/dcmtk/dcmdata/dcdatset.h ../include/dcmtk/dcmdata/dcitem.h \
  ../include/dcmtk/dcmdata/dcpcache.h ../include/dcmtk/dcmdata/dcdeftag.h \
- ../include/dcmtk/dcmdata/dcuid.h
+ ../include/dcmtk/dcmdata/dcuid.h \
+ ../../ofstd/include/dcmtk/ofstd/ofbmanip.h \
+ ../../ofstd/include/dcmtk/ofstd/diag/stringop.def \
+ ../../ofstd/include/dcmtk/ofstd/diag/restrict.def
 dcelem.o: dcelem.cc ../../config/include/dcmtk/config/osconfig.h \
  ../../ofstd/include/dcmtk/ofstd/ofdefine.h \
  ../../ofstd/include/dcmtk/ofstd/ofcast.h \
