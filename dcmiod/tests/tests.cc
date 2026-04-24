@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2016-2025, OFFIS e.V.
+ *  Copyright (C) 2016-2026, Open Connections GmbH
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -23,6 +23,10 @@
 #include "dcmtk/ofstd/oftest.h"
 
 OFTEST_REGISTER(dcmiod_component_check_invalid_chars);
+OFTEST_REGISTER(dcmiod_static_rules_cow);
+OFTEST_REGISTER(dcmiod_static_rules_reset);
+OFTEST_REGISTER(dcmiod_static_rules_new_instance_after_cow);
+OFTEST_REGISTER(dcmiod_static_rules_external_container);
 OFTEST_REGISTER(dcmiod_component_check_max_length_violated);
 OFTEST_REGISTER(dcmiod_component_check_missing_value);
 OFTEST_REGISTER(dcmiod_component_check_vm_violated);

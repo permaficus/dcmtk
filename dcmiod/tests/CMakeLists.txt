@@ -7,6 +7,7 @@ DCMTK_ADD_TEST_EXECUTABLE(dcmiod_tests
   timagepixel.cc
   tmacro.cc
   tpalette.cc
+  tstaticrules.cc
   tests.cc
 )
 
