@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2015-2025, Open Connections GmbH
+ *  Copyright (C) 2015-2026, Open Connections GmbH
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation are maintained by
@@ -747,47 +747,58 @@ OFCondition DcmIODUtil::extractBinaryFrames(Uint8* pixData,
         results.push_back(frame);
     }
 
-    // Extract frames
-    size_t bitsLeftInInputByte = 8;
-    size_t bitsLeftInTargetByte = 8;
-    size_t bitsLeftInFrame = bitsPerFrame;
-    size_t inputByteIndex = 0;
-    size_t targetFrameIndex = 0;
-    size_t targetByteIndex = 0;
-    // Iterate over bits in input data (byte per byte, from left to right, and within byte from right to left)
-    for (size_t i = 0; i < numFrames * bitsPerFrame; i++)
+    // Extract frames.
+    // Fast path: when bitsPerFrame is a multiple of 8, every frame starts on
+    // a byte boundary in the input, so we can memcpy each frame directly.
+    if (bitsPerFrame % 8 == 0)
     {
-        // Get current bit
-        Uint8 bit = (pixData[inputByteIndex] >> (8 - bitsLeftInInputByte)) & 0x01;
-
-        // Set bit in current frame to to position calculated from bitsLeftInTargetByte
-        OFstatic_cast(Uint8*, results[targetFrameIndex]->getPixelData())[targetByteIndex] |= (bit << (8 - bitsLeftInTargetByte));
-
-        // Move to next bit
-        bitsLeftInInputByte--;
-        bitsLeftInFrame--;
-        bitsLeftInTargetByte--;
-
-        // If we have processed all bits in the current byte, move to next byte
-        if (bitsLeftInInputByte == 0)
+        for (size_t f = 0; f < numFrames; f++)
         {
-            bitsLeftInInputByte = 8;
-            inputByteIndex++;
+            memcpy(results[f]->getPixelData(), pixData + f * bytesPerFrame, bytesPerFrame);
         }
-        // If we have processed all bits in the current frame, move to next frame,
-        // and also start new target frame
-        if (bitsLeftInFrame == 0)
+    }
+    else
+    {
+        // Slow path: frames are not byte-aligned, extract bit by bit.
+        size_t bitsLeftInInputByte = 8;
+        size_t bitsLeftInTargetByte = 8;
+        size_t bitsLeftInFrame = bitsPerFrame;
+        size_t inputByteIndex = 0;
+        size_t targetFrameIndex = 0;
+        size_t targetByteIndex = 0;
+        Uint8* targetData = OFstatic_cast(Uint8*, results[0]->getPixelData());
+        for (size_t i = 0; i < numFrames * bitsPerFrame; i++)
         {
-            bitsLeftInFrame = bitsPerFrame;
-            targetFrameIndex++;
-            targetByteIndex = 0;
-            bitsLeftInTargetByte = 8;
-        }
-        // Advance to next target byte if we have filled the current one
-        if (bitsLeftInTargetByte == 0)
-        {
-            bitsLeftInTargetByte = 8;
-            targetByteIndex++;
+            // Get current bit from input
+            Uint8 bit = (pixData[inputByteIndex] >> (8 - bitsLeftInInputByte)) & 0x01;
+
+            // Set bit in current frame
+            targetData[targetByteIndex] |= (bit << (8 - bitsLeftInTargetByte));
+
+            // Move to next bit
+            bitsLeftInInputByte--;
+            bitsLeftInFrame--;
+            bitsLeftInTargetByte--;
+
+            if (bitsLeftInInputByte == 0)
+            {
+                bitsLeftInInputByte = 8;
+                inputByteIndex++;
+            }
+            if (bitsLeftInFrame == 0)
+            {
+                bitsLeftInFrame = bitsPerFrame;
+                targetFrameIndex++;
+                targetByteIndex = 0;
+                bitsLeftInTargetByte = 8;
+                if (targetFrameIndex < numFrames)
+                    targetData = OFstatic_cast(Uint8*, results[targetFrameIndex]->getPixelData());
+            }
+            if (bitsLeftInTargetByte == 0)
+            {
+                bitsLeftInTargetByte = 8;
+                targetByteIndex++;
+            }
         }
     }
     return EC_Normal;

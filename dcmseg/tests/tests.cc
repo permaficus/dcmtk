@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2015-2025, OFFIS e.V.
+ *  Copyright (C) 2015-2026, Open Connections GmbH
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -28,6 +28,7 @@ OFTEST_REGISTER(dcmseg_debugByte2Bin);
 OFTEST_REGISTER(dcmseg_packBinaryFrame);
 OFTEST_REGISTER(dcmseg_packAndUnpackBinaryFrame);
 OFTEST_REGISTER(dcmseg_concatBinaryFrames);
+OFTEST_REGISTER(dcmseg_extractBinaryFrames);
 OFTEST_REGISTER(dcmseg_roundtrip);
 OFTEST_REGISTER(dcmseg_concat_binary);
 OFTEST_REGISTER(dcmseg_labelmap_8bit_mono2);

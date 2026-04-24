@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2015-2025, OFFIS e.V.
+ *  Copyright (C) 2015-2026, Open Connections GmbH
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -21,6 +21,7 @@
 
 #include "dcmtk/config/osconfig.h" /* make sure OS specific configuration is included first */
 
+#include "dcmtk/dcmiod/iodutil.h"
 #include "dcmtk/dcmseg/segutils.h"
 #include "dcmtk/dcmseg/segtypes.h"
 #include "dcmtk/ofstd/oftest.h"
@@ -236,7 +237,116 @@ OFTEST(dcmseg_debugByte2Bin)
 }
 
 
-OFTEST(dcmseg_utils)
+OFTEST(dcmseg_extractBinaryFrames)
 {
+    // Exhaustively test extractBinaryFrames for bitsPerFrame 1..200 and numFrames 1..20.
+    // For each combination:
+    //   1. Create random sparse frames (one byte per pixel, value 0 or 1)
+    //   2. Pack each frame individually with packBinaryFrame
+    //   3. Concatenate all packed frames into a single pixel data buffer with concatBinaryFrames
+    //   4. Extract individual frames from that buffer with extractBinaryFrames
+    //   5. Compare each extracted frame byte-by-byte against the individually packed original
+    //
+    // This covers all bit-alignment cases (bitsPerFrame % 8 == 0..7), the memcpy fast path
+    // (multiples of 8), the bit-by-bit slow path, and multi-frame boundary crossings.
 
+    unsigned int seed = OFstatic_cast(unsigned int, time(NULL));
+    size_t numTests = 0;
+
+    for (size_t bitsPerFrame = 1; bitsPerFrame <= 200; bitsPerFrame++)
+    {
+        for (size_t numFrames = 1; numFrames <= 20; numFrames++)
+        {
+            size_t bytesPerFrame = (bitsPerFrame + 7) / 8;
+
+            // Step 1: Create random sparse frames and pack each individually
+            OFVector<Uint8*> sparseFrames;
+            OFVector<DcmIODTypes::FrameBase*> packedFrames;
+            sparseFrames.reserve(numFrames);
+            packedFrames.reserve(numFrames);
+
+            for (size_t f = 0; f < numFrames; f++)
+            {
+                Uint8* sparse = new Uint8[bitsPerFrame];
+                for (size_t b = 0; b < bitsPerFrame; b++)
+                {
+                    sparse[b] = OFstatic_cast(Uint8, OFrand_r(seed) % 2);
+                }
+                sparseFrames.push_back(sparse);
+
+                // Use rows=1, cols=bitsPerFrame to pack (rows*cols = bitsPerFrame)
+                DcmIODTypes::FrameBase* packed = DcmSegUtils::packBinaryFrame(
+                    sparse, 1, OFstatic_cast(Uint16, bitsPerFrame));
+                OFCHECK(packed != NULL);
+                if (!packed)
+                    goto cleanup;
+                packedFrames.push_back(packed);
+            }
+
+            {
+                // Step 2: Concatenate all packed frames into a single buffer
+                // Total bits = numFrames * bitsPerFrame, total bytes = ceil(total_bits / 8)
+                size_t totalBits = numFrames * bitsPerFrame;
+                size_t totalBytes = (totalBits + 7) / 8;
+                Uint8* pixData = new Uint8[totalBytes];
+                memset(pixData, 0, totalBytes);
+
+                OFCondition result = DcmSegUtils::concatBinaryFrames(
+                    packedFrames, 1, OFstatic_cast(Uint16, bitsPerFrame),
+                    pixData, totalBytes);
+                OFCHECK(result.good());
+
+                if (result.good())
+                {
+                    // Step 3: Extract frames from concatenated buffer
+                    OFVector<DcmIODTypes::FrameBase*> extracted;
+                    result = DcmIODUtil::extractBinaryFrames(
+                        pixData, numFrames, bitsPerFrame, extracted);
+                    OFCHECK(result.good());
+
+                    if (result.good())
+                    {
+                        OFCHECK(extracted.size() == numFrames);
+
+                        // Step 4: Compare each extracted frame against individually packed original
+                        for (size_t f = 0; f < numFrames && f < extracted.size(); f++)
+                        {
+                            OFCHECK(extracted[f] != NULL);
+                            OFCHECK(packedFrames[f] != NULL);
+                            if (extracted[f] && packedFrames[f])
+                            {
+                                int cmp = memcmp(extracted[f]->getPixelData(),
+                                                 packedFrames[f]->getPixelData(),
+                                                 bytesPerFrame);
+                                if (cmp != 0)
+                                {
+                                    OFCHECK_FAIL("extractBinaryFrames mismatch: bitsPerFrame="
+                                        << bitsPerFrame << " numFrames=" << numFrames
+                                        << " frame=" << f);
+                                }
+                            }
+                        }
+                    }
+
+                    // Clean up extracted frames
+                    for (size_t f = 0; f < extracted.size(); f++)
+                        delete extracted[f];
+                }
+
+                delete[] pixData;
+            }
+
+        cleanup:
+            // Clean up packed and sparse frames
+            for (size_t f = 0; f < packedFrames.size(); f++)
+                delete packedFrames[f];
+            for (size_t f = 0; f < sparseFrames.size(); f++)
+                delete[] sparseFrames[f];
+
+            numTests++;
+        }
+    }
+    // Sanity check: we ran 200 * 20 = 4000 combinations
+    OFCHECK(numTests == 4000);
 }
+
