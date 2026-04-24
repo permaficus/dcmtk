@@ -1809,6 +1809,39 @@ OFBool DcmSegmentation::check(const OFBool checkFGStructure)
         return OFFalse;
     }
 
+    // For LABELMAP, every pixel value in the pixel data must be described
+    // by a Segment Sequence item (Sup 243, Section C.8.20.2.3.3).
+    if (m_SegmentationType == DcmSegTypes::ST_LABELMAP)
+    {
+        for (size_t f = 0; f < m_Frames.size(); f++)
+        {
+            const DcmIODTypes::FrameBase* frame = m_Frames[f];
+            if (frame == NULL)
+                continue;
+            const size_t numPixels = frame->getLengthInBytes() / frame->bytesPerPixel();
+            for (size_t p = 0; p < numPixels; p++)
+            {
+                Uint16 pixVal = 0;
+                if (frame->bytesPerPixel() == 1)
+                {
+                    Uint8 val8 = 0;
+                    frame->getUint8AtIndex(val8, p);
+                    pixVal = val8;
+                }
+                else
+                {
+                    frame->getUint16AtIndex(pixVal, p);
+                }
+                if (pixVal >= m_Segments.size() || m_Segments[pixVal] == NULL)
+                {
+                    DCMSEG_ERROR("Pixel value " << pixVal << " in frame " << f
+                        << " has no corresponding Segment Sequence item");
+                    return OFFalse;
+                }
+            }
+        }
+    }
+
     if (checkFGStructure)
     {
         if (!m_FGInterface.check())
