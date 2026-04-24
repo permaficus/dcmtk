@@ -1584,6 +1584,15 @@ OFCondition DcmSegmentation::writeSegmentationImageModule(DcmItem& dataset)
                 {
                     segmentItem->putAndInsertUint16(DCM_SegmentNumber, OFstatic_cast(Uint16, i));
                 }
+                /* Recommended Display CIELab Value shall not be present
+                 * if Segmentation Type is LABELMAP and Photometric
+                 * Interpretation is PALETTE COLOR (Sup 243). */
+                if (result.good()
+                    && (m_SegmentationType == DcmSegTypes::ST_LABELMAP)
+                    && (colorModel == "PALETTE COLOR"))
+                {
+                    segmentItem->findAndDeleteElement(DCM_RecommendedDisplayCIELabValue);
+                }
             }
             else
             {
