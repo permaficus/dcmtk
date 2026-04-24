@@ -221,11 +221,9 @@ void FGInterface::ThreadedFGReader::run()
             m_errorMutex->unlock();
             return;
         }
-        // Each thread writes to its own non-overlapping range, so no lock needed,
-        // but we keep it for safety in case the ranges are ever changed.
-        m_frameResultGroupsMutex->lock();
+        // Each thread writes to its own non-overlapping range, so no lock needed.
+        // Range boundaries [m_startFrame, m_endFrame) are fixed for each thread and never change.
         (*m_frameResultGroups)[frameNo] = groupsOneFrame.release();
-        m_frameResultGroupsMutex->unlock();
         DCMFG_DEBUG("Finished reading functional groups for frame #" << frameNo);
     }
 }
@@ -507,7 +505,6 @@ OFCondition FGInterface::readPerFrameFGParallel(DcmSequenceOfItems& perFrameFGSe
     // Pre-size the result vector so threads can write to non-overlapping indices
     m_perFrame.resize(numFrames, NULL);
     PerFrameGroups& perFrameResultGroups = m_perFrame;
-    OFMutex perFrameResultGroupsMutex;
 
     // Create a vector to hold the results of all threads, protected by a mutex
     OFMutex perFrameInputMutex;
@@ -539,7 +536,7 @@ OFCondition FGInterface::readPerFrameFGParallel(DcmSequenceOfItems& perFrameFGSe
         Uint32 endFrame = (startFrame + framesPerThread < numFrames) ? startFrame + framesPerThread : OFstatic_cast(Uint32, numFrames);
 
         threads[i]->init(&perFrameInputItems, &perFrameInputMutex,
-                         &perFrameResultGroups, &perFrameResultGroupsMutex,
+                         &perFrameResultGroups, OFnullptr,
                          startFrame,
                          endFrame,
                          &errorMutex, &errorOccurred, this);
@@ -585,14 +582,14 @@ OFCondition FGInterface::readSingleFG(DcmItem& fgItem, FunctionalGroups& groups)
         }
         else
         {
+            OFStringStream stream;
+            stream << DcmFGTypes::tagKey2FGString(elem->getTag()) << " " << elem->getTag();
+            OFSTRINGSTREAM_GETSTR(stream, tmpstr)
+            fgname = tmpstr;
+            OFSTRINGSTREAM_FREESTR(tmpstr)
             FGBase* fg = FGFactory::instance().create(elem->getTag());
             if (fg != NULL)
             {
-                OFStringStream stream;
-                stream << DcmFGTypes::tagKey2FGString(elem->getTag()) << " " << elem->getTag();
-                OFSTRINGSTREAM_GETSTR(stream, tmpstr)
-                fgname = tmpstr;
-                OFSTRINGSTREAM_FREESTR(tmpstr)
                 result = fg->read(fgItem);
                 if (result.bad())
                 {
