@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015-2025, Open Connections GmbH
+ *  Copyright (C) 2015-2026, Open Connections GmbH
  *
  *  All rights reserved.  See COPYRIGHT file for details.
  *
@@ -124,6 +124,9 @@ DcmSegmentation::DcmSegmentation(OFin_place_type_t(ImagePixel))
     , m_SegmentationFractionalType(DcmSegTypes::SFT_OCCUPANCY)
     , m_MaximumFractionalValue(DCM_MaximumFractionalValue)
     , m_Segments()
+    , m_NumSegments(0)
+    , m_SegmentsCompat()
+    , m_SegmentsCompatDirty(OFTrue)
     , m_FGInterface()
     , m_inputXfer(EXS_Unknown)
 {
@@ -781,7 +784,7 @@ Uint16 DcmSegmentation::getColumns()
 
 size_t DcmSegmentation::getNumberOfSegments()
 {
-    return m_Segments.size();
+    return m_NumSegments;
 }
 
 IODGeneralEquipmentModule& DcmSegmentation::getEquipment()
@@ -799,29 +802,35 @@ OFCondition DcmSegmentation::addSegment(DcmSegment* seg, Uint16& segmentNumber)
     if (seg == NULL)
         return EC_IllegalParameter;
 
-    if (m_Segments.size() >= DCM_SEG_MAX_SEGMENTS)
+    if (m_NumSegments >= DCM_SEG_MAX_SEGMENTS)
     {
         return SG_EC_MaxSegmentsReached;
     }
     // For labelmaps, use the given segment number
     if (m_SegmentationType == DcmSegTypes::ST_LABELMAP)
     {
-        m_Segments.insert(OFMake_pair(segmentNumber, seg));
+        if (segmentNumber >= m_Segments.size())
+            m_Segments.resize(segmentNumber + 1, NULL);
+        m_Segments[segmentNumber] = seg;
+        m_NumSegments++;
+        m_SegmentsCompatDirty = OFTrue;
         return EC_Normal;
     }
     // For binary/fractional, start with 1 if no segment exists
-    if (m_Segments.empty())
+    if (m_NumSegments == 0)
     {
         segmentNumber = 1;
-        m_Segments.insert(OFMake_pair(segmentNumber, seg));
+        m_Segments.resize(2, NULL); // index 0 = unused, index 1 = first segment
+        m_Segments[1] = seg;
+        m_NumSegments++;
+        m_SegmentsCompatDirty = OFTrue;
         return EC_Normal;
     }
-    // Use next free segment number and insert
-    // (i.e. get the highest segment number and increment by 1).
-    OFMap<Uint16, DcmSegment*>::iterator it = m_Segments.end();
-    it--;
-    segmentNumber = it->first + 1;
-    m_Segments.insert(OFMake_pair(segmentNumber, seg));
+    // Next segment number = current vector size (contiguous from index 1)
+    segmentNumber = OFstatic_cast(Uint16, m_Segments.size());
+    m_Segments.push_back(seg);
+    m_NumSegments++;
+    m_SegmentsCompatDirty = OFTrue;
     return EC_Normal;
 }
 
@@ -1006,13 +1015,9 @@ DcmSegment* DcmSegmentation::getSegment(const Uint16 segmentNumber)
         DCMSEG_ERROR("Cannot get segment 0: No such Segment Number allowed segmentation if segmentation is of type " << DcmSegTypes::segtype2OFString(m_SegmentationType));
         return NULL;
     }
-    OFMap<Uint16, DcmSegment*>::iterator it = m_Segments.find(segmentNumber);
-    if (it == m_Segments.end())
-    {
+    if (segmentNumber >= m_Segments.size())
         return NULL;
-    }
-
-    return it->second;
+    return m_Segments[segmentNumber];
 }
 
 OFBool DcmSegmentation::getSegmentNumber(const DcmSegment* segment, size_t& segmentNumber)
@@ -1020,22 +1025,22 @@ OFBool DcmSegmentation::getSegmentNumber(const DcmSegment* segment, size_t& segm
     if (segment == NULL)
         return OFFalse;
 
-    OFMap<Uint16, DcmSegment*>::iterator it = m_Segments.begin();
-    while (it != m_Segments.end())
+    for (size_t i = 0; i < m_Segments.size(); i++)
     {
-        if (it->second == segment)
+        if (m_Segments[i] == segment)
         {
-            segmentNumber = it->first;
+            segmentNumber = i;
             return OFTrue;
         }
-        it++;
     }
     return OFFalse;
 }
 
 const OFMap<Uint16, DcmSegment*>& DcmSegmentation::getSegments()
 {
-    return m_Segments;
+    if (m_SegmentsCompatDirty)
+        rebuildSegmentsCompat();
+    return m_SegmentsCompat;
 }
 
 OFCondition DcmSegmentation::getModality(OFString& value, const long signed int pos) const
@@ -1074,13 +1079,12 @@ OFCondition DcmSegmentation::importFromSourceImage(DcmItem& dataset, const bool 
 OFCondition DcmSegmentation::writeSegments(DcmItem& item)
 {
     OFCondition result;
-    // writeSubSequence cannot handle a map, copy to vector instead and use that for this purpose
+    // Collect non-NULL segments into a temporary vector for writeSubSequence
     OFVector<DcmSegment*> segments;
-    OFMap<Uint16, DcmSegment*>::iterator it = m_Segments.begin();
-    while (it != m_Segments.end())
+    for (size_t i = 0; i < m_Segments.size(); i++)
     {
-        segments.push_back(it->second);
-        it++;
+        if (m_Segments[i] != NULL)
+            segments.push_back(m_Segments[i]);
     }
     DcmIODUtil::writeSubSequence<OFVector<DcmSegment*> >(
         result, DCM_SegmentSequence, segments, item, "1-n", "1", "SegmentationImageModule");
@@ -1089,7 +1093,6 @@ OFCondition DcmSegmentation::writeSegments(DcmItem& item)
 
 OFCondition DcmSegmentation::readSegments(DcmItem& item)
 {
-    // readSubSequence cannot handle a map, read into vector instead and fill into map afterwards
     OFVector<DcmSegment*> segments;
 
     OFCondition result = DcmIODUtil::readSubSequence<OFVector<DcmSegment*> >(
@@ -1100,14 +1103,17 @@ OFCondition DcmSegmentation::readSegments(DcmItem& item)
         {
             if (result.good())
             {
-                if (m_Segments.insert(OFMake_pair(segments[count]->getSegmentNumberRead(), segments[count])).second
-                    == false)
+                Uint16 segNum = segments[count]->getSegmentNumberRead();
+                if (segNum >= m_Segments.size())
+                    m_Segments.resize(segNum + 1, NULL);
+                if (m_Segments[segNum] != NULL)
                 {
-                    DCMSEG_ERROR("Cannot insert segment " << segments[count]->getSegmentNumberRead()
-                                                          << " since it already exists");
+                    DCMSEG_ERROR("Cannot insert segment " << segNum << " since it already exists");
                     result = EC_IllegalCall;
                     break;
                 }
+                m_Segments[segNum] = segments[count];
+                m_NumSegments++;
             }
             else
             {
@@ -1117,6 +1123,8 @@ OFCondition DcmSegmentation::readSegments(DcmItem& item)
             }
         }
     }
+    if (result.good())
+        m_SegmentsCompatDirty = OFTrue;
 
     return result;
 }
@@ -1560,19 +1568,21 @@ OFCondition DcmSegmentation::writeSegmentationImageModule(DcmItem& dataset)
     OFVector<DcmItem*> segmentItems;
     if (result.good())
     {
-        OFMap<Uint16, DcmSegment*>::iterator it = m_Segments.begin();
         dataset.findAndDeleteElement(DCM_SegmentSequence);
-        for (Uint16 itemCount = 0; (it != m_Segments.end()) && result.good(); itemCount++)
+        Uint16 itemCount = 0;
+        for (size_t i = 0; i < m_Segments.size() && result.good(); i++)
         {
+            if (m_Segments[i] == NULL)
+                continue;
             DcmItem* segmentItem = NULL;
             dataset.findOrCreateSequenceItem(DCM_SegmentSequence, segmentItem, itemCount);
             if (segmentItem)
             {
-                result = (*it).second->write(*segmentItem);
-                /* Insert segment number for the segment, starting from 1 and increasing monotonically. */
+                result = m_Segments[i]->write(*segmentItem);
+                /* Insert segment number for the segment */
                 if (result.good())
                 {
-                    segmentItem->putAndInsertUint16(DCM_SegmentNumber, (*it).first);
+                    segmentItem->putAndInsertUint16(DCM_SegmentNumber, OFstatic_cast(Uint16, i));
                 }
             }
             else
@@ -1580,7 +1590,7 @@ OFCondition DcmSegmentation::writeSegmentationImageModule(DcmItem& dataset)
                 DCMIOD_ERROR("Cannot create/get item in Segment Sequence (internal error)");
                 result = EC_InternalError;
             }
-            it++;
+            itemCount++;
         }
     }
 
@@ -1589,13 +1599,27 @@ OFCondition DcmSegmentation::writeSegmentationImageModule(DcmItem& dataset)
 
 // -- private helpers --
 
+void DcmSegmentation::rebuildSegmentsCompat() const
+{
+    m_SegmentsCompat.clear();
+    for (size_t i = 0; i < m_Segments.size(); i++)
+    {
+        if (m_Segments[i] != NULL)
+            m_SegmentsCompat.insert(OFMake_pair(OFstatic_cast(Uint16, i), m_Segments[i]));
+    }
+    m_SegmentsCompatDirty = OFFalse;
+}
+
 void DcmSegmentation::clearData()
 {
     DcmSegmentation::IODImage::clearData();
     m_FG.clearData();
     m_FGInterface.clear();
     DcmIODUtil::freeContainer(m_Frames);
-    DcmIODUtil::freeMap(m_Segments);
+    DcmIODUtil::freeContainer(m_Segments);
+    m_NumSegments = 0;
+    m_SegmentsCompat.clear();
+    m_SegmentsCompatDirty = OFTrue;
     m_MaximumFractionalValue.clear();
     m_SegmentationFractionalType = DcmSegTypes::SFT_UNKNOWN;
     m_SegmentationType           = DcmSegTypes::ST_UNKNOWN;
@@ -1757,12 +1781,12 @@ OFBool DcmSegmentation::check(const OFBool checkFGStructure)
         DCMSEG_ERROR("No frame data available");
         return OFFalse;
     }
-    if (m_Segments.size() == 0)
+    if (m_NumSegments == 0)
     {
         DCMSEG_ERROR("No segments defined");
         return OFFalse;
     }
-    if (m_Segments.size() > DCM_SEG_MAX_SEGMENTS)
+    if (m_NumSegments > DCM_SEG_MAX_SEGMENTS)
     {
         DCMSEG_ERROR("Too many segments defined");
         return OFFalse;
@@ -1770,7 +1794,7 @@ OFBool DcmSegmentation::check(const OFBool checkFGStructure)
     // Check that all segments are referenced by at least one frame.
     // This is not required for label maps, since frames are only indirectly (through their pixel values)
     // referencing segments.
-    if ( (m_Segments.size() > m_Frames.size()) && (m_SegmentationType != DcmSegTypes::ST_LABELMAP) )
+    if ( (m_NumSegments > m_Frames.size()) && (m_SegmentationType != DcmSegTypes::ST_LABELMAP) )
     {
         DCMSEG_ERROR("More segments than frames defined");
         return OFFalse;

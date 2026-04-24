@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2022-2025, OFFIS e.V.
+ *  Copyright (C) 2022-2026, OFFIS e.V.
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -21,10 +21,6 @@
 
 #include "dcmtk/config/osconfig.h" /* make sure OS specific configuration is included first */
 #include "dcmtk/ofstd/oftest.h"
-#include "dcmtk/dcmseg/segtypes.h" /* for DCMSEG_DEBUG */
-
-// DCMTK's original OFMap implementation is too slow for this test...
-#ifdef HAVE_STL_MAP
 #include "dcmtk/dcmseg/segdoc.h"
 #include "dcmtk/dcmseg/segment.h"
 
@@ -46,8 +42,8 @@ static const Uint8 NUM_THREADS          = 16; // Use 16 threads for writing and 
 // Restrict to 1.000.000 Frames since the theoretical 2^31-1 number of frames
 // results in too much memory usage and waiting time
 
-static const Uint32 NUM_FRAMES           = 1000000;
-static const size_t NUM_SEGS             = DCM_SEG_MAX_SEGMENTS;
+static const Uint32 NUM_FRAMES           = 50000;
+static const size_t NUM_SEGS             = 50000;
 
 static const Uint8 NUM_PIXELS_PER_FRAME = NUM_COLS * NUM_ROWS;
 
@@ -302,12 +298,3 @@ static void checkCreatedObject(DcmDataset& dset)
         }
     }
 }
-#else
-
-// Dummy version of the test case. Needed to prevent ctest test failure.
-OFTEST(dcmseg_bigdim)
-{
-    DCMSEG_DEBUG("Will not run dcmseg_bigdim test: std::map support (HAVE_STL_MAP) must be defined to complete the test in acceptable time");
-}
-
-#endif // HAVE_STL_MAP

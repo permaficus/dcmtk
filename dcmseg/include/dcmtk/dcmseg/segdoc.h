@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2015-2025, Open Connections GmbH
+ *  Copyright (C) 2015-2026, Open Connections GmbH
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation are maintained by
@@ -42,6 +42,7 @@
 #include "dcmtk/dcmseg/segment.h"  // for DcmSegment class
 #include "dcmtk/dcmseg/segtypes.h" // for segmentation data types
 #include "dcmtk/dcmseg/segutils.h" // fo packBinaryFrame()
+#include "dcmtk/ofstd/ofmap.h"     // for OFMap (compat layer in getSegments())
 #include "dcmtk/ofstd/ofvector.h"  // for OFVector class
 #include "dcmtk/ofstd/ofdiag.h"    // for DCMTK_DIAGNOSTIC_PUSH etc.
 
@@ -822,10 +823,30 @@ private:
     DcmUnsignedShort m_MaximumFractionalValue;
 
     /// Segment descriptions from Segment Sequence.
-    /// Maps Segment Number to Segment Description data.
+    /// Indexed by Segment Number (segment N at index N).
+    /// For binary/fractional segmentations, index 0 is unused (NULL).
     /// For Labelmaps, the Segment Number is the label value, i.e. the pixel
     /// value used in the pixel data to denote the segment.
-    OFMap<Uint16, DcmSegment*> m_Segments;
+    OFVector<DcmSegment*> m_Segments;
+
+    /// Number of non-NULL segments in m_Segments
+    size_t m_NumSegments;
+
+    /// Compatibility map returned by getSegments(). Built lazily from
+    /// m_Segments when m_SegmentsCompatDirty is OFTrue, so that callers
+    /// of the public OFMap-based API are unaffected by the internal
+    /// switch to OFVector. Declared mutable (together with the dirty
+    /// flag below) because rebuilding the cache does not change the
+    /// logical state of the object, only its internal representation,
+    /// and must be possible from the const rebuildSegmentsCompat() helper.
+    mutable OFMap<Uint16, DcmSegment*> m_SegmentsCompat;
+
+    /// When OFTrue, m_SegmentsCompat is stale and must be rebuilt from
+    /// m_Segments before the next getSegments() call. Set to OFTrue by
+    /// any operation that mutates m_Segments (addSegment, readSegments,
+    /// clearData); cleared by rebuildSegmentsCompat(). Mutable for the
+    /// same reason as m_SegmentsCompat (see above).
+    mutable OFBool m_SegmentsCompatDirty;
 
     /// Multi-frame Functional Groups high level interface
     FGInterface m_FGInterface;
@@ -837,6 +858,10 @@ private:
     E_TransferSyntax m_inputXfer;
 
     // --------------- private helper functions -------------------
+
+    /** Rebuild m_SegmentsCompat map from m_Segments vector (lazy compat layer)
+     */
+    void rebuildSegmentsCompat() const;
 
     /** Clear old data
      */

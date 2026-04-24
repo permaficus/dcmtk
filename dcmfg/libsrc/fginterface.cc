@@ -565,7 +565,6 @@ OFCondition FGInterface::readPerFrameFGParallel(DcmSequenceOfItems& perFrameFGSe
         return errorOccurred;
     }
 
-    // Store the results in m_perFrame
     return EC_Normal;
 }
 
