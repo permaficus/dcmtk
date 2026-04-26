@@ -32,6 +32,20 @@
 #define bufLen 4
 
 
+// Convert an 8-character "01010101" string into a Uint8.
+// Used in place of C++14 binary literals (0b...) to keep the test code C++98-compliant
+// while remaining as readable as the original literal form.
+static Uint8 bin2byte(const char* bits)
+{
+    Uint8 value = 0;
+    for (int i = 0; i < 8 && bits[i] != '\0'; ++i)
+    {
+        value = OFstatic_cast(Uint8, (value << 1) | (bits[i] == '1' ? 1 : 0));
+    }
+    return value;
+}
+
+
 // Check whether packing of sparse frames into binary packed frames works correctly
 OFTEST(dcmseg_packBinaryFrame)
 {
@@ -40,14 +54,14 @@ OFTEST(dcmseg_packBinaryFrame)
     DcmIODTypes::Frame<Uint8>* packed = DcmSegUtils::packBinaryFrame(sparseFrame1, 4, 2);
     OFCHECK(packed != NULL);
     OFCHECK(packed->getLengthInBytes() == 1);
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == 0b00001111, OFString("Expected 0b00001111, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == bin2byte("00001111"), OFString("Expected 00001111, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
     delete packed;
 
     Uint8 sparseFrame2[8] = {1, 0, 1, 0, 1, 0, 1, 0};
     packed = DcmSegUtils::packBinaryFrame(sparseFrame2, 4, 2);
     OFCHECK(packed != NULL);
     OFCHECK(packed->getLengthInBytes() == 1);
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == 0b01010101, OFString("Expected 0b01010101, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == bin2byte("01010101"), OFString("Expected 01010101, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
     delete packed;
 
     // Now try the that is larger than a byte and not a multiple of 8, with every third pixel set to 1
@@ -55,8 +69,8 @@ OFTEST(dcmseg_packBinaryFrame)
     packed = DcmSegUtils::packBinaryFrame(sparseFrame3, 5, 3);
     OFCHECK(packed != NULL);
     OFCHECK(packed->getLengthInBytes() == 2);
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == 0b00100100, OFString("Expected 0b00100100, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[1] == 0b01001001, OFString("Expected 0b01001001, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[1]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == bin2byte("00100100"), OFString("Expected 00100100, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[1] == bin2byte("01001001"), OFString("Expected 01001001, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[1]));
     delete packed;
 
     // Now the same but with every 5th pixel set to 1, and rows=7 and cols=5
@@ -69,11 +83,11 @@ OFTEST(dcmseg_packBinaryFrame)
     packed = DcmSegUtils::packBinaryFrame(sparseFrame4, 7, 5);
     OFCHECK(packed != NULL);
     OFCHECK(packed->getLengthInBytes() == 5);
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == 0b00100001, OFString("Expected 0b00100001, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[1] == 0b10000100, OFString("Expected 0b10000100, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[1]));
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[2] == 0b00010000, OFString("Expected 0b00010000, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[2]));
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[3] == 0b01000010, OFString("Expected 0b01000010, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[3]));
-    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[4] == 0b00000000, OFString("Expected 0b00000000, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[4]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[0] == bin2byte("00100001"), OFString("Expected 00100001, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[0]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[1] == bin2byte("10000100"), OFString("Expected 10000100, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[1]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[2] == bin2byte("00010000"), OFString("Expected 00010000, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[2]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[3] == bin2byte("01000010"), OFString("Expected 01000010, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[3]));
+    OFCHECK_MSG(OFstatic_cast(Uint8*, packed->getPixelData())[4] == bin2byte("00000000"), OFString("Expected 00000000, got ") + DcmSegUtils::debugByte2Bin(  OFstatic_cast(Uint8*, packed->getPixelData())[4]));
     delete packed;
 
     // In 1000 iterations create sparse frames and pack them. Check whether the
@@ -211,9 +225,9 @@ OFTEST(dcmseg_concatBinaryFrames)
     OFCondition result = DcmSegUtils::concatBinaryFrames(inputFrames, rows, cols, pixData, 2 * rows * cols);
     OFCHECK(result.good());
     // Check the result
-    OFCHECK_MSG(pixData[0] == 0b11111111, OFString("Expected 0b11111111, got ") + DcmSegUtils::debugByte2Bin(pixData[0]));
-    OFCHECK_MSG(pixData[1] == 0b11101111, OFString("Expected 0b11101111, got ") + DcmSegUtils::debugByte2Bin(pixData[1]));
-    OFCHECK_MSG(pixData[2] == 0b11111111, OFString("Expected 0b11111111, got ") + DcmSegUtils::debugByte2Bin(pixData[2]));
+    OFCHECK_MSG(pixData[0] == bin2byte("11111111"), OFString("Expected 11111111, got ") + DcmSegUtils::debugByte2Bin(pixData[0]));
+    OFCHECK_MSG(pixData[1] == bin2byte("11101111"), OFString("Expected 11101111, got ") + DcmSegUtils::debugByte2Bin(pixData[1]));
+    OFCHECK_MSG(pixData[2] == bin2byte("11111111"), OFString("Expected 11111111, got ") + DcmSegUtils::debugByte2Bin(pixData[2]));
     // avoid memory leaks
     delete packed1;
     delete packed2;
