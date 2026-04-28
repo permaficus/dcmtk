@@ -99,9 +99,9 @@ OFTEST(dcmseg_packBinaryFrame)
     for (unsigned int i = 0; i < 1000; i++)
     {
         unsigned int now = OFstatic_cast(unsigned int, time(NULL));
-        Uint16 cols = OFrand_r(now) % 100 + 1;
-        Uint16 rows = OFrand_r(now) % 100 + 1;
-        Uint16 pixelCount = cols * rows;
+        Uint16 cols = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 rows = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 pixelCount = OFstatic_cast(Uint16, cols * rows);
 
         Uint8* sparseFrame = new Uint8[pixelCount];
         OFCHECK(sparseFrame != NULL);
@@ -111,7 +111,7 @@ OFTEST(dcmseg_packBinaryFrame)
         {
             tm.setCurrentTime();
             unsigned int micro = tm.getMicroSecond();
-            sparseFrame[j] =  OFrand_r(micro) % 2;
+            sparseFrame[j] = OFstatic_cast(Uint8, OFrand_r(micro) % 2);
         }
         // Pack the frame
         DcmIODTypes::Frame<Uint8>* packedFrame = DcmSegUtils::packBinaryFrame(sparseFrame, rows, cols);
@@ -146,9 +146,9 @@ OFTEST(dcmseg_packAndUnpackBinaryFrame)
     unsigned int now = OFstatic_cast(unsigned int, time(NULL));
     for (unsigned int i = 0; i < 1000; i++)
     {
-        Uint16 cols = OFrand_r(now) % 100 + 1;
-        Uint16 rows = OFrand_r(now) % 100 + 1 ;
-        Uint16 pixelCount = cols * rows;
+        Uint16 cols = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 rows = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 pixelCount = OFstatic_cast(Uint16, cols * rows);
 
         Uint8* sparseFrame = new Uint8[pixelCount];
         OFCHECK(sparseFrame != NULL);
@@ -158,7 +158,7 @@ OFTEST(dcmseg_packAndUnpackBinaryFrame)
         // Create a random sparse frame
         for (unsigned int j = 0; j < pixelCount; j++)
         {
-            sparseFrame[j] = OFrand_r(now) % 2;
+            sparseFrame[j] = OFstatic_cast(Uint8, OFrand_r(now) % 2);
         }
 
         // Pack and unpack the frame
@@ -177,9 +177,9 @@ OFTEST(dcmseg_packAndUnpackBinaryFrame)
 
     // Do the same with frame completely 0, and 1 (i.e. all bits set), respectively
     for (int i = 0; i < 10; ++i) {
-        Uint16 rows = OFrand_r(now) % 100 + 1;
-        Uint16 cols = OFrand_r(now) % 100 + 1;
-        Uint16 pixelCount = rows * cols;
+        Uint16 rows = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 cols = OFstatic_cast(Uint16, OFrand_r(now) % 100 + 1);
+        Uint16 pixelCount = OFstatic_cast(Uint16, rows * cols);
 
         Uint8* sparseFrame = new Uint8[pixelCount];
         OFCHECK(sparseFrame != NULL);
