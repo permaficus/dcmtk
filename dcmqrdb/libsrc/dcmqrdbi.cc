@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 1993-2025, OFFIS e.V.
+ *  Copyright (C) 1993-2026, OFFIS e.V.
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -2471,12 +2471,16 @@ OFCondition DcmQueryRetrieveIndexDatabaseHandle::deleteOldestImages(StudyDescRec
 
     DB_IdxInitLoop (&(handle_ -> idxCounter)) ;
     while ( DB_IdxGetNext(&(handle_ -> idxCounter), &idxRec) == EC_Normal ) {
-    if ( ! ( strncmp(idxRec. StudyInstanceUID, StudyUID, n) ) ) {
-
-        StudyArray[nbimages]. idxCounter = handle_ -> idxCounter ;
-        StudyArray[nbimages]. RecordedDate = idxRec. RecordedDate ;
-        StudyArray[nbimages++]. ImageSize = idxRec. ImageSize ;
-    }
+        if ( ! ( strncmp(idxRec. StudyInstanceUID, StudyUID, n) ) ) {
+            StudyArray[nbimages]. idxCounter = handle_ -> idxCounter ;
+            StudyArray[nbimages]. RecordedDate = idxRec. RecordedDate ;
+            StudyArray[nbimages++]. ImageSize = idxRec. ImageSize ;
+            if (nbimages == MAX_NUMBER_OF_IMAGES) {
+                // too many images in this study, bail out
+                DCMQRDB_ERROR("maximum number of images per study (" << MAX_NUMBER_OF_IMAGES << ") exceeded");
+                return QR_EC_IndexDatabaseError;
+            }
+        }
     }
 
     /** Sort the StudyArray in order to have the oldest images first
@@ -2563,6 +2567,8 @@ OFCondition DcmQueryRetrieveIndexDatabaseHandle::checkupinStudyDesc(StudyDescRec
     s = matchStudyUIDInStudyDesc (pStudyDesc, StudyUID,
                      (int)(handle_ -> maxStudiesAllowed)) ;
 
+    OFCondition cond;
+
     /** If Study already exists
      */
 
@@ -2583,9 +2589,9 @@ OFCondition DcmQueryRetrieveIndexDatabaseHandle::checkupinStudyDesc(StudyDescRec
 
         RequiredSize = imageSize -
             ( handle_ -> maxBytesPerStudy - pStudyDesc[s]. StudySize ) ;
-        deleteOldestImages(pStudyDesc, s, StudyUID, RequiredSize) ;
+        cond = deleteOldestImages(pStudyDesc, s, StudyUID, RequiredSize) ;
+        if (cond.bad()) return cond;
     }
-
 
     }
     else {
